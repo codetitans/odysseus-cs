@@ -1,0 +1,11 @@
+# temp files
+.DS_Store
+/src/.idea
+
+# binaries produced during build
+/src/CodeTitans.OdysseusClient/bin
+/src/CodeTitans.OdysseusClient/obj
+/src/UnitTests/bin
+/src/UnitTests/obj
+/src/UnitTests/TestResults
+
