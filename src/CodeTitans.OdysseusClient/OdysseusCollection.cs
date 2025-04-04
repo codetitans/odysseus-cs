@@ -17,7 +17,7 @@ public sealed class OdysseusCollection<T>
 
     private readonly object _lock = new object();
     private List<T> _entries;
-    private List<T> _toUpload;
+    private T[] _toUpload;
     private Timer? _timer;
 
     public OdysseusCollection(IHttpClientFactory clientFactory, string endPoint, string entityName, int delay = 5, Action<string>? internalLog = null)
@@ -29,7 +29,7 @@ public sealed class OdysseusCollection<T>
         _internalLog = internalLog;
 
         _entries = new List<T>();
-        _toUpload = new List<T>();
+        _toUpload = Array.Empty<T>();
     }
 
     public OdysseusCollection<T> Add(T item)
@@ -58,21 +58,30 @@ public sealed class OdysseusCollection<T>
     {
         lock (_lock)
         {
-            _toUpload = _entries;
-            _entries = new List<T>();
+            _toUpload = _entries.ToArray();
+            _entries.Clear();
         }
 
         bool success = false;
         try
         {
             success = await PerformUploadAsync();
+            _timer?.Dispose();
+            _timer = null;
+
             if (success)
             {
                 lock (_lock)
                 {
-                    _toUpload = new List<T>();
-                    _timer?.Dispose();
-                    _timer = null;
+                    _toUpload = Array.Empty<T>();
+                }
+            }
+            else
+            {
+                lock (_lock)
+                {
+                    _entries.InsertRange(0, _toUpload);
+                    _toUpload = Array.Empty<T>();
                 }
             }
         }
@@ -86,15 +95,10 @@ public sealed class OdysseusCollection<T>
             }
         }
 
-        // restart the timer if needed
-        if (!success || _entries.Count > 0)
+        // restart the timer if needed to upload something again
+        if (_entries.Count > 0)
         {
-            lock (_lock)
-            {
-                _toUpload.AddRange(_entries);
-                _entries.Clear();
-                StartTimer();
-            }
+            StartTimer();
         }
     }
 
