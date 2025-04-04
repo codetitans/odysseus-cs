@@ -12,7 +12,7 @@ public sealed class OdysseusEventEntry
     public Guid? StreamId { get; }
     public int Position { get; }
     public string? UserId { get; }
-    public DateTime? Timestamp { get; }
+    public DateTime Timestamp { get; }
     public IReadOnlyDictionary<string, object>? Data { get; }
     public IReadOnlyDictionary<string, object>? Meta { get; }
 
@@ -27,7 +27,7 @@ public sealed class OdysseusEventEntry
         StreamId = streamId;
         Position = position;
         UserId = userId;
-        Timestamp = timestamp;
+        Timestamp = timestamp.HasValue ? timestamp.Value.ToUniversalTime() : DateTime.UtcNow;
         Data = data;
         Meta = meta;
     }

@@ -12,7 +12,7 @@ public sealed class OdysseusLogEntry
     public string? File { get; }
     public int? Line { get; }
     public string? UserId { get; }
-    public DateTime? Timestamp { get; }
+    public DateTime Timestamp { get; }
     public IReadOnlyDictionary<string, object>? Context { get; }
 
     public OdysseusLogEntry(string message, Guid sessionId, int severity = 0, string? tag = null, string? file = null,
@@ -25,7 +25,7 @@ public sealed class OdysseusLogEntry
         File = file;
         Line = line;
         UserId = userId;
-        Timestamp = timestamp;
+        Timestamp = timestamp.HasValue ? timestamp.Value.ToUniversalTime() : DateTime.UtcNow;
         Context = context;
     }
 
