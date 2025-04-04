@@ -1,8 +1,10 @@
 # temp files
 .DS_Store
+.user
 /src/.idea
 
 # binaries produced during build
+/src/CodeTitans.OdysseusClient.sln.DotSettings.user
 /src/CodeTitans.OdysseusClient/bin
 /src/CodeTitans.OdysseusClient/obj
 /src/UnitTests/bin
