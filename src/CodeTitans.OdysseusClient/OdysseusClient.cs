@@ -16,6 +16,11 @@ public sealed class OdysseusClient
         int minSeverity = 1,
         IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null)
     {
+        if (string.IsNullOrWhiteSpace(appId))
+            throw new ArgumentNullException(nameof(appId));
+        if (string.IsNullOrWhiteSpace(appKey))
+            throw new ArgumentNullException(nameof(appKey));
+
         UserId = userId;
         SessionId = sessionId ?? Guid.NewGuid();
         MinSeverity = minSeverity;
@@ -53,6 +58,9 @@ public sealed class OdysseusClient
         set;
     }
 
+    /// <summary>
+    /// Internal simple way of providing default http-client.
+    /// </summary>
     private sealed class InternalClientFactory : IHttpClientFactory
     {
         public HttpClient CreateClient(string name)
@@ -62,7 +70,7 @@ public sealed class OdysseusClient
     }
 
     /// <summary>
-    /// Stores new log entry, if severity level is matching expectations.
+    /// Stores new log entry, if severity level is matching expectations and then uploads it to the backend.
     /// </summary>
     public OdysseusLogEntry? Add(OdysseusLogEntry entry)
     {
@@ -76,9 +84,9 @@ public sealed class OdysseusClient
     }
 
     /// <summary>
-    /// Stores new log entry, if severity level is matching expectations.
+    /// Stores new log entry, if severity level is matching expectations and then uploads it to the backend.
     /// </summary>
-    public OdysseusLogEntry? Log(string message, int severity, string? tag = null, string? file = null, int? line = null,
+    public OdysseusLogEntry? Log(string message, int severity = 1, string? tag = null, string? file = null, int? line = null,
         DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
     {
         if (severity < MinSeverity)
@@ -91,7 +99,7 @@ public sealed class OdysseusClient
     }
 
     /// <summary>
-    /// Stores a new event.
+    /// Stores a new event and then uploads it to the backend.
     /// </summary>
     public OdysseusEventEntry? Add(OdysseusEventEntry entry)
     {
