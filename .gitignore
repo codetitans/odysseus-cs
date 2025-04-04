@@ -14,5 +14,5 @@
 # Private Tokens
 gitea.token
 github.token
-
+/publish-tool
 
