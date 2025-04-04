@@ -7,6 +7,12 @@
         <RootNamespace>CodeTitans.Odysseus</RootNamespace>
         <TargetFrameworks>net9.0;net6.0;net8.0</TargetFrameworks>
         <LangVersion>10</LangVersion>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <PackageOutputPath>../../publish-tool</PackageOutputPath>
+        <PackageId>CodeTitans.Odysseus</PackageId>
+        <PackageVersion>1.0.0</PackageVersion>
         <Authors>CodeTitans Sp. z o.o.</Authors>
         <Description>Client library for Remote Logging Platform</Description>
         <Copyright>Copyright © $([System.DateTime]::UtcNow.Year) CodeTitans Sp. z o.o. ($([System.DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss")))</Copyright>
