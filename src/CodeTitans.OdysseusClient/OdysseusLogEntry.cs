@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CodeTitans.Odysseus;
 
 /// <summary>
@@ -5,14 +7,31 @@ namespace CodeTitans.Odysseus;
 /// </summary>
 public sealed class OdysseusLogEntry
 {
+    [JsonPropertyName("message")]
     public string Message { get; }
+
+    [JsonPropertyName("session_id")]
     public Guid SessionId { get; }
+
+    [JsonPropertyName("severity")]
     public int Severity { get; }
+
+    [JsonPropertyName("tag")]
     public string? Tag { get; }
+
+    [JsonPropertyName("file")]
     public string? File { get; }
+
+    [JsonPropertyName("line")]
     public int? Line { get; }
+
+    [JsonPropertyName("user_id")]
     public string? UserId { get; }
+
+    [JsonPropertyName("timestamp")]
     public DateTime Timestamp { get; }
+
+    [JsonPropertyName("context")]
     public IReadOnlyDictionary<string, object>? Context { get; }
 
     public OdysseusLogEntry(string message, Guid sessionId, int severity = 0, string? tag = null, string? file = null,

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CodeTitans.Odysseus;
 
 /// <summary>
@@ -5,15 +7,34 @@ namespace CodeTitans.Odysseus;
 /// </summary>
 public sealed class OdysseusEventEntry
 {
+    [JsonPropertyName("id")]
     public Guid Id { get; }
+
+    [JsonPropertyName("name")]
     public string Name { get; }
+
+    [JsonPropertyName("session_id")]
     public Guid SessionId { get; }
+
+    [JsonPropertyName("type")]
     public int Type { get; }
+
+    [JsonPropertyName("stream_id")]
     public Guid? StreamId { get; }
+
+    [JsonPropertyName("position")]
     public int Position { get; }
+
+    [JsonPropertyName("user_id")]
     public string? UserId { get; }
+
+    [JsonPropertyName("timestamp")]
     public DateTime Timestamp { get; }
+
+    [JsonPropertyName("data")]
     public IReadOnlyDictionary<string, object>? Data { get; }
+
+    [JsonPropertyName("meta")]
     public IReadOnlyDictionary<string, object>? Meta { get; }
 
     public OdysseusEventEntry(Guid id, string name, Guid sessionId, int type = 0, Guid? streamId = null,
