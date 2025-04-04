@@ -49,7 +49,7 @@ public sealed class OdysseusCollection<T>
 
     private void StartTimer()
     {
-        _timer = new Timer(_delay * 1000);
+        _timer = new Timer( _delay <= 0 ? 50 : _delay * 1000);
         _timer.Elapsed += ExecuteUploadAsync;
         _timer.AutoReset = false;
         _timer.Start();
