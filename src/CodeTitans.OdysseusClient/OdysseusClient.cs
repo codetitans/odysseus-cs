@@ -70,6 +70,14 @@ public sealed class OdysseusClient
     }
 
     /// <summary>
+    /// Checks, if given severity level is good for storing.
+    /// </summary>
+    public bool IsMatching(int severity)
+    {
+        return severity >= MinSeverity;
+    }
+
+    /// <summary>
     /// Stores new log entry, if severity level is matching expectations and then uploads it to the backend.
     /// </summary>
     public OdysseusLogEntry? Add(OdysseusLogEntry entry)
