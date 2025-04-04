@@ -11,3 +11,8 @@
 /src/UnitTests/obj
 /src/UnitTests/TestResults
 
+# Private Tokens
+gitea.token
+github.token
+
+
