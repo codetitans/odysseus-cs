@@ -62,23 +62,19 @@ public sealed class OdysseusCollection<T>
             _entries.Clear();
         }
 
-        bool success = false;
         try
         {
-            success = await PerformUploadAsync();
-            _timer?.Dispose();
-            _timer = null;
-
-            if (success)
+            var success = await PerformUploadAsync();
+            lock (_lock)
             {
-                lock (_lock)
+                _timer?.Dispose();
+                _timer = null;
+
+                if (success)
                 {
                     _toUpload = Array.Empty<T>();
                 }
-            }
-            else
-            {
-                lock (_lock)
+                else
                 {
                     _entries.InsertRange(0, _toUpload);
                     _toUpload = Array.Empty<T>();
