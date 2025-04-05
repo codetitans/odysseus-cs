@@ -70,15 +70,11 @@ public sealed class OdysseusCollection<T>
                 _timer?.Dispose();
                 _timer = null;
 
-                if (success)
-                {
-                    _toUpload = Array.Empty<T>();
-                }
-                else
+                if (!success)
                 {
                     _entries.InsertRange(0, _toUpload);
-                    _toUpload = Array.Empty<T>();
                 }
+                _toUpload = Array.Empty<T>();
             }
         }
         catch (Exception ex)
