@@ -14,7 +14,7 @@ public sealed class OdysseusLogEntry
     public Guid SessionId { get; }
 
     [JsonPropertyName("severity")]
-    public int Severity { get; }
+    public LogSeverity Severity { get; }
 
     [JsonPropertyName("tag")]
     public string? Tag { get; }
@@ -37,7 +37,7 @@ public sealed class OdysseusLogEntry
     [JsonPropertyName("context")]
     public IReadOnlyDictionary<string, object>? Context { get; }
 
-    public OdysseusLogEntry(string message, Guid sessionId, int severity = 0, string? tag = null, short? platform = null, string? file = null,
+    public OdysseusLogEntry(string message, Guid sessionId, LogSeverity severity = LogSeverity.Trace, string? tag = null, short? platform = null, string? file = null,
         int? line = null, string? userId = null, DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
     {
         Message = message;

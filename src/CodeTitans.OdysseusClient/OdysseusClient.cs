@@ -13,7 +13,7 @@ public sealed class OdysseusClient
     private readonly OdysseusCollection<OdysseusEventEntry> _events;
 
     public OdysseusClient(string appId, string appKey, string? userId = null, Guid? sessionId = null,
-        int minSeverity = 1, short? platform = null,
+        LogSeverity minSeverity = LogSeverity.Debug, short? platform = null,
         IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null)
     {
         if (string.IsNullOrWhiteSpace(appId))
@@ -53,7 +53,7 @@ public sealed class OdysseusClient
         set;
     }
 
-    public int MinSeverity
+    public LogSeverity MinSeverity
     {
         get;
         set;
@@ -79,7 +79,7 @@ public sealed class OdysseusClient
     /// <summary>
     /// Checks, if given severity level is good for storing.
     /// </summary>
-    public bool IsMatching(int severity)
+    public bool IsMatching(LogSeverity severity)
     {
         return severity >= MinSeverity;
     }
@@ -101,7 +101,7 @@ public sealed class OdysseusClient
     /// <summary>
     /// Stores new log entry, if severity level is matching expectations and then uploads it to the backend.
     /// </summary>
-    public OdysseusLogEntry? Log(string message, int severity = 1, string? tag = null, string? file = null, int? line = null,
+    public OdysseusLogEntry? Log(string message, LogSeverity severity = LogSeverity.Debug, string? tag = null, string? file = null, int? line = null,
         DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
     {
         if (severity < MinSeverity)
