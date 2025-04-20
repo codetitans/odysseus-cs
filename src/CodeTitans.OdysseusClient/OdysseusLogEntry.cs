@@ -24,7 +24,7 @@ public sealed class OdysseusLogEntry
     public short? Platform { get; }
 
     [JsonPropertyName("file")]
-    public string? File { get; }
+    public string? File { get; set; }
 
     [JsonPropertyName("method")]
     public string? MethodName { get; }

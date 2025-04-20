@@ -9,12 +9,15 @@ namespace CodeTitans.Odysseus;
 public sealed class OdysseusClient
 {
     private readonly Action<string>? _internalLog;
+    private readonly bool _stripFileName;
+    private readonly string? _stripFileNamePrefix;
 
     private readonly OdysseusCollection<OdysseusLogEntry> _logs;
     private readonly OdysseusCollection<OdysseusEventEntry> _events;
 
     public OdysseusClient(string appId, string appKey, string? userId = null, Guid? sessionId = null,
         LogSeverity minSeverity = LogSeverity.Debug, short? platform = null,
+        bool stripFileName = true, string? stripFileNamePrefix = null,
         IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null)
     {
         if (string.IsNullOrWhiteSpace(appId))
@@ -28,6 +31,8 @@ public sealed class OdysseusClient
         Platform = platform;
 
         _internalLog = internalLog;
+        _stripFileName = stripFileName;
+        _stripFileNamePrefix = stripFileNamePrefix;
         var cf = clientFactory ?? new InternalClientFactory();
 
         _logs = new OdysseusCollection<OdysseusLogEntry>(endPoint: string.Concat("/api/logs/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
@@ -95,6 +100,11 @@ public sealed class OdysseusClient
             return null;
         }
 
+        if (_stripFileName)
+        {
+            entry.File = StripFileName(entry.File);
+        }
+
         _logs.Add(entry);
         return entry;
     }
@@ -112,7 +122,7 @@ public sealed class OdysseusClient
         }
 
         return Add(new OdysseusLogEntry(message, SessionId, severity: severity, tag: tag,
-            file: file, methodName: methodName, line: line,
+            file: StripFileName(file), methodName: methodName, line: line,
             platform: Platform, userId: UserId, timestamp: timestamp, context: context));
     }
 
@@ -135,5 +145,40 @@ public sealed class OdysseusClient
         return Add(new OdysseusEventEntry(id: id ?? Guid.NewGuid(), name, sessionId: SessionId, type: type,
             platform: Platform, streamId: streamId, position: position, userId: UserId, timestamp: timestamp,
             data: data, meta: meta));
+    }
+
+    /// <summary>
+    /// Drop path from given file name.
+    /// </summary>
+    public string? StripFileName(string? name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+
+        if (!_stripFileName)
+        {
+            return name;
+        }
+
+        if (string.IsNullOrEmpty(_stripFileNamePrefix))
+        {
+            var index = name.LastIndexOf('/');
+            if (index < 0)
+            {
+                index = name.LastIndexOf('\\');
+            }
+
+            return name.Substring(index + 1);
+        }
+
+        var at = name.IndexOf(_stripFileNamePrefix, StringComparison.Ordinal);
+        if (at < 0)
+        {
+            return name;
+        }
+
+        return name.Substring(at + _stripFileNamePrefix.Length);
     }
 }
