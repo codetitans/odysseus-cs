@@ -13,6 +13,9 @@ public sealed class OdysseusEventEntry
     [JsonPropertyName("name")]
     public string Name { get; }
 
+    [JsonPropertyName("platform")]
+    public short? Platform { get; }
+
     [JsonPropertyName("session_id")]
     public Guid SessionId { get; }
 
@@ -37,7 +40,7 @@ public sealed class OdysseusEventEntry
     [JsonPropertyName("meta")]
     public IReadOnlyDictionary<string, object>? Meta { get; }
 
-    public OdysseusEventEntry(Guid id, string name, Guid sessionId, int type = 0, Guid? streamId = null,
+    public OdysseusEventEntry(Guid id, string name, Guid sessionId, int type = 0, short? platform = null, Guid? streamId = null,
         int position = 0, string? userId = null, DateTime? timestamp = null,
         IReadOnlyDictionary<string, object>? data = null, IReadOnlyDictionary<string, object>? meta = null)
     {
@@ -45,6 +48,7 @@ public sealed class OdysseusEventEntry
         Name = name;
         SessionId = sessionId;
         Type = type;
+        Platform = platform;
         StreamId = streamId;
         Position = position;
         UserId = userId;

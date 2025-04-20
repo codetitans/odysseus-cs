@@ -13,7 +13,7 @@ public sealed class OdysseusClient
     private readonly OdysseusCollection<OdysseusEventEntry> _events;
 
     public OdysseusClient(string appId, string appKey, string? userId = null, Guid? sessionId = null,
-        int minSeverity = 1,
+        int minSeverity = 1, short? platform = null,
         IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null)
     {
         if (string.IsNullOrWhiteSpace(appId))
@@ -24,6 +24,7 @@ public sealed class OdysseusClient
         UserId = userId;
         SessionId = sessionId ?? Guid.NewGuid();
         MinSeverity = minSeverity;
+        Platform = platform;
 
         _internalLog = internalLog;
         var cf = clientFactory ?? new InternalClientFactory();
@@ -58,8 +59,14 @@ public sealed class OdysseusClient
         set;
     }
 
+    public short? Platform
+    {
+        get;
+        set;
+    }
+
     /// <summary>
-    /// Internal simple way of providing default http-client.
+    /// Internal simple way of providing the default http-client.
     /// </summary>
     private sealed class InternalClientFactory : IHttpClientFactory
     {
@@ -103,7 +110,7 @@ public sealed class OdysseusClient
         }
 
         return Add(new OdysseusLogEntry(message, SessionId, severity: severity, tag: tag, file: file, line: line,
-            userId: UserId, timestamp: timestamp, context: context));
+            platform: Platform, userId: UserId, timestamp: timestamp, context: context));
     }
 
     /// <summary>
@@ -116,13 +123,14 @@ public sealed class OdysseusClient
     }
 
     /// <summary>
-    /// Stores new event and later on uploads it to the backend.
+    /// Stores a new event and later on uploads it to the backend.
     /// </summary>
     public OdysseusEventEntry? Event(string name, Guid? id = null, int type = 0, Guid? streamId = null, int position = 0,
         DateTime? timestamp = null, IReadOnlyDictionary<string, object>? data = null,
         IReadOnlyDictionary<string, object>? meta = null)
     {
         return Add(new OdysseusEventEntry(id: id ?? Guid.NewGuid(), name, sessionId: SessionId, type: type,
-            streamId: streamId, position: position, userId: UserId, timestamp: timestamp, data: data, meta: meta));
+            platform: Platform, streamId: streamId, position: position, userId: UserId, timestamp: timestamp,
+            data: data, meta: meta));
     }
 }
