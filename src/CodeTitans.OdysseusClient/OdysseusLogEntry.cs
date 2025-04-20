@@ -15,7 +15,7 @@ public sealed class OdysseusLogEntry
     public Guid SessionId { get; }
 
     [JsonPropertyName("severity")]
-    public LogSeverity Severity { get; }
+    public short Severity { get; }
 
     [JsonPropertyName("tag")]
     public string? Tag { get; }
@@ -27,7 +27,7 @@ public sealed class OdysseusLogEntry
     public string? File { get; }
 
     [JsonPropertyName("method")]
-    public string? MethodName { get; set; }
+    public string? MethodName { get; }
 
     [JsonPropertyName("line")]
     public int? Line { get; }
@@ -47,7 +47,7 @@ public sealed class OdysseusLogEntry
     {
         Message = message;
         SessionId = sessionId;
-        Severity = severity;
+        Severity = (short) severity;
         Platform = platform;
         Tag = tag;
         File = file;

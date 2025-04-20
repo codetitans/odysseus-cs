@@ -90,7 +90,7 @@ public sealed class OdysseusClient
     /// </summary>
     public OdysseusLogEntry? Add(OdysseusLogEntry entry)
     {
-        if (entry.Severity < MinSeverity)
+        if (entry.Severity < (short) MinSeverity)
         {
             return null;
         }
