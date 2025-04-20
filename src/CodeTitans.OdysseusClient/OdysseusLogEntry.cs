@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace CodeTitans.Odysseus;
@@ -25,6 +26,9 @@ public sealed class OdysseusLogEntry
     [JsonPropertyName("file")]
     public string? File { get; }
 
+    [JsonPropertyName("method")]
+    public string? MethodName { get; set; }
+
     [JsonPropertyName("line")]
     public int? Line { get; }
 
@@ -37,8 +41,9 @@ public sealed class OdysseusLogEntry
     [JsonPropertyName("context")]
     public IReadOnlyDictionary<string, object>? Context { get; }
 
-    public OdysseusLogEntry(string message, Guid sessionId, LogSeverity severity = LogSeverity.Trace, string? tag = null, short? platform = null, string? file = null,
-        int? line = null, string? userId = null, DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
+    public OdysseusLogEntry(string message, Guid sessionId, LogSeverity severity = LogSeverity.Trace, string? tag = null, short? platform = null,
+        [CallerFilePath] string? file = null, [CallerMemberName] string? methodName = null, [CallerLineNumber] int? line = null,
+        string? userId = null, DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
     {
         Message = message;
         SessionId = sessionId;
@@ -46,6 +51,7 @@ public sealed class OdysseusLogEntry
         Platform = platform;
         Tag = tag;
         File = file;
+        MethodName = methodName;
         Line = line;
         UserId = userId;
         Timestamp = timestamp.HasValue ? timestamp.Value.ToUniversalTime() : DateTime.UtcNow;

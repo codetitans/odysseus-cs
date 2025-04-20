@@ -1,4 +1,5 @@
-﻿using System.Web;
+﻿using System.Runtime.CompilerServices;
+using System.Web;
 
 namespace CodeTitans.Odysseus;
 
@@ -101,7 +102,8 @@ public sealed class OdysseusClient
     /// <summary>
     /// Stores new log entry, if severity level is matching expectations and then uploads it to the backend.
     /// </summary>
-    public OdysseusLogEntry? Log(string message, LogSeverity severity = LogSeverity.Debug, string? tag = null, string? file = null, int? line = null,
+    public OdysseusLogEntry? Log(string message, LogSeverity severity = LogSeverity.Debug, string? tag = null,
+        [CallerFilePath] string? file = null, [CallerMemberName] string? methodName = null, [CallerLineNumber] int? line = null,
         DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
     {
         if (severity < MinSeverity)
@@ -109,7 +111,8 @@ public sealed class OdysseusClient
             return null;
         }
 
-        return Add(new OdysseusLogEntry(message, SessionId, severity: severity, tag: tag, file: file, line: line,
+        return Add(new OdysseusLogEntry(message, SessionId, severity: severity, tag: tag,
+            file: file, methodName: methodName, line: line,
             platform: Platform, userId: UserId, timestamp: timestamp, context: context));
     }
 
