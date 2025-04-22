@@ -82,6 +82,8 @@ public sealed class OdysseusCollection<T>
             _internalLog?.Invoke($"Failed to upload {_entityName} to Odysseus: {ex.Message}");
             lock (_lock)
             {
+                _entries.InsertRange(0, _toUpload);
+                _toUpload = Array.Empty<T>();
                 _timer?.Dispose();
                 _timer = null;
             }
