@@ -4,11 +4,10 @@ using System.Web;
 namespace CodeTitans.Odysseus;
 
 /// <summary>
-/// Odyssus Platform client capable of delivering logs and events on a timely based manner to optimize the network traffic.
+/// Odysseus Platform client capable of delivering logs and events on a timely based manner to optimize the network traffic.
 /// </summary>
-public sealed class OdysseusClient
+public sealed class OdysseusClient : IOdysseusLog
 {
-    private readonly Action<string>? _internalLog;
     private readonly bool _stripFileName;
     private readonly string? _stripFileNamePrefix;
 
@@ -30,7 +29,6 @@ public sealed class OdysseusClient
         MinSeverity = minSeverity;
         Platform = platform;
 
-        _internalLog = internalLog;
         _stripFileName = stripFileName;
         _stripFileNamePrefix = stripFileNamePrefix;
         var cf = clientFactory ?? new InternalClientFactory();
@@ -39,12 +37,12 @@ public sealed class OdysseusClient
             clientFactory: cf,
             delay: delay,
             entityName: "logs",
-            internalLog: _internalLog);
+            internalLog: internalLog);
         _events = new OdysseusCollection<OdysseusEventEntry>(endPoint: string.Concat("/api/events/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
             clientFactory: cf,
             delay: delay,
             entityName: "events",
-            internalLog: _internalLog);
+            internalLog: internalLog);
     }
 
     public string? UserId
@@ -129,7 +127,7 @@ public sealed class OdysseusClient
     /// <summary>
     /// Stores a new event and then uploads it to the backend.
     /// </summary>
-    public OdysseusEventEntry? Add(OdysseusEventEntry entry)
+    public OdysseusEventEntry Add(OdysseusEventEntry entry)
     {
         _events.Add(entry);
         return entry;
@@ -138,7 +136,7 @@ public sealed class OdysseusClient
     /// <summary>
     /// Stores a new event and later on uploads it to the backend.
     /// </summary>
-    public OdysseusEventEntry? Event(string name, Guid? id = null, int type = 0, Guid? streamId = null, int position = 0,
+    public OdysseusEventEntry Event(string name, Guid? id = null, int type = 0, Guid? streamId = null, int position = 0,
         DateTime? timestamp = null, IReadOnlyDictionary<string, object>? data = null,
         IReadOnlyDictionary<string, object>? meta = null)
     {

@@ -1,0 +1,28 @@
+namespace CodeTitans.Odysseus;
+
+public interface IOdysseusSession
+{
+    public string? UserId
+    {
+        get;
+        set;
+    }
+
+    public Guid SessionId
+    {
+        get;
+        set;
+    }
+
+    public LogSeverity MinSeverity
+    {
+        get;
+        set;
+    }
+
+    public short? Platform
+    {
+        get;
+        set;
+    }
+}
