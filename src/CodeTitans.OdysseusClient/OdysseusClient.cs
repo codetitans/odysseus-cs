@@ -6,7 +6,7 @@ namespace CodeTitans.Odysseus;
 /// <summary>
 /// Odysseus Platform client capable of delivering logs and events on a timely based manner to optimize the network traffic.
 /// </summary>
-public sealed class OdysseusClient : IOdysseusLog
+public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
 {
     private readonly bool _stripFileName;
     private readonly string? _stripFileNamePrefix;
