@@ -146,6 +146,28 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
     }
 
     /// <summary>
+    /// Wraps exception into a custom dictionary for easier setting as parameter in meta.
+    /// </summary>
+    public Dictionary<string, object> Wrap(Exception e)
+    {
+        var d = new Dictionary<string, object>();
+
+        d.Add("type", e.GetType().Name);
+        d.Add("message", e.Message);
+        if (!string.IsNullOrEmpty(e.StackTrace))
+        {
+            d.Add("stack", e.StackTrace);
+        }
+
+        if (e.InnerException != null)
+        {
+            d.Add("inner", Wrap(e.InnerException));
+        }
+
+        return d;
+    }
+
+    /// <summary>
     /// Drop path from given file name.
     /// </summary>
     public string? StripFileName(string? name)

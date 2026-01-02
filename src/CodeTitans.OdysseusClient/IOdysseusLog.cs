@@ -27,4 +27,9 @@ public interface IOdysseusLog
     OdysseusEventEntry Event(string name, Guid? id = null, int type = 0, Guid? streamId = null, int position = 0,
         DateTime? timestamp = null, IReadOnlyDictionary<string, object>? data = null,
         IReadOnlyDictionary<string, object>? meta = null);
+
+    /// <summary>
+    /// Wraps exception into a custom dictionary for easier setting as parameter in meta.
+    /// </summary>
+    Dictionary<string, object> Wrap(Exception e);
 }
