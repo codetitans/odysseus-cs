@@ -168,7 +168,7 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
     }
 
     /// <summary>
-    /// Drop path from given file name.
+    /// Drops a path from a given file name.
     /// </summary>
     public string? StripFileName(string? name)
     {
