@@ -146,6 +146,14 @@ public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
     }
 
     /// <summary>
+    /// Creates new associated and simplified logger for a given tag.
+    /// </summary>
+    public IOdysseusLog Create(string? tag = null)
+    {
+        return new OdysseusLogger(this, tag);
+    }
+
+    /// <summary>
     /// Wraps exception into a custom dictionary for easier setting as parameter in meta.
     /// </summary>
     public Dictionary<string, object> Wrap(Exception e)
