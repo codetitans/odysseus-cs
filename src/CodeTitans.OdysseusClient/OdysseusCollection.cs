@@ -14,8 +14,8 @@ sealed class OdysseusCollection<T>
     private readonly int _delay;
     private readonly Action<string>? _internalLog;
 
-    private readonly object _lock = new object();
-    private List<T> _entries;
+    private readonly object _lock = new ();
+    private readonly List<T> _entries;
     private T[] _toUpload;
     private Timer? _timer;
 
