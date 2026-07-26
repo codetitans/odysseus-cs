@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 
 namespace CodeTitans.Odysseus;
 
-public interface IOdysseusLog
+public interface IOdysseusClient
 {
     /// <summary>
     /// Adds a new log entry. Returns that log entry, if stored or null, when log level was too high to keep it stored.
