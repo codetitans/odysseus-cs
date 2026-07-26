@@ -5,11 +5,10 @@ using Timer = System.Timers.Timer;
 
 namespace CodeTitans.Odysseus;
 
-public sealed class OdysseusCollection<T>
+sealed class OdysseusCollection<T>
 {
-    private static readonly Uri BaseUri = new Uri("https://odysseus.codetitans.dev");
-
     private readonly IHttpClientFactory _clientFactory;
+    private readonly Uri _baseUri;
     private readonly string _endPoint;
     private readonly string _entityName;
     private readonly int _delay;
@@ -20,9 +19,10 @@ public sealed class OdysseusCollection<T>
     private T[] _toUpload;
     private Timer? _timer;
 
-    public OdysseusCollection(IHttpClientFactory clientFactory, string endPoint, string entityName, int delay = 5, Action<string>? internalLog = null)
+    public OdysseusCollection(IHttpClientFactory clientFactory, string? host, string endPoint, string entityName, int delay = 5, Action<string>? internalLog = null)
     {
         _clientFactory = clientFactory;
+        _baseUri = string.IsNullOrEmpty(host) ? new Uri("https://odysseus.codetitans.dev") : new Uri(host);
         _endPoint = endPoint;
         _entityName = entityName;
         _delay = delay;
@@ -102,7 +102,7 @@ public sealed class OdysseusCollection<T>
         var json = JsonSerializer.Serialize(_toUpload);
         var content = new StringContent(json, Encoding.UTF8, System.Net.Mime.MediaTypeNames.Application.Json);
 
-        var apiUri = new Uri(BaseUri, _endPoint);
+        var apiUri = new Uri(_baseUri, _endPoint);
         var response = await client.PostAsync(apiUri, content);
 
         if (response.IsSuccessStatusCode)

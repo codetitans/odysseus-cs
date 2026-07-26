@@ -17,7 +17,7 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
     public OdysseusClient(string appId, string appKey, string? user = null, Guid? sessionId = null,
         LogSeverity minSeverity = LogSeverity.Debug, short? platform = null,
         bool stripFileName = true, string? stripFileNamePrefix = null,
-        IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null)
+        IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null, string? targetHost = null)
     {
         if (string.IsNullOrWhiteSpace(appId))
             throw new ArgumentNullException(nameof(appId));
@@ -33,12 +33,12 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
         _stripFileNamePrefix = stripFileNamePrefix;
         var cf = clientFactory ?? new InternalClientFactory();
 
-        _logs = new OdysseusCollection<OdysseusLogEntry>(endPoint: string.Concat("/api/logs/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
+        _logs = new OdysseusCollection<OdysseusLogEntry>(host: targetHost, endPoint: string.Concat("/api/logs/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
             clientFactory: cf,
             delay: delay,
             entityName: "logs",
             internalLog: internalLog);
-        _events = new OdysseusCollection<OdysseusEventEntry>(endPoint: string.Concat("/api/events/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
+        _events = new OdysseusCollection<OdysseusEventEntry>(host: targetHost, endPoint: string.Concat("/api/events/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
             clientFactory: cf,
             delay: delay,
             entityName: "events",
