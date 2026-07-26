@@ -32,7 +32,7 @@ public sealed class OdysseusLogEntry
     [JsonPropertyName("line")]
     public int? Line { get; }
 
-    [JsonPropertyName("user_id")]
+    [JsonPropertyName("user")]
     public string? UserId { get; }
 
     [JsonPropertyName("timestamp")]
