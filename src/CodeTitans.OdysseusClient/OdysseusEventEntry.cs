@@ -28,8 +28,8 @@ public sealed class OdysseusEventEntry
     [JsonPropertyName("position")]
     public int Position { get; }
 
-    [JsonPropertyName("user_id")]
-    public string? UserId { get; }
+    [JsonPropertyName("user")]
+    public string? User { get; }
 
     [JsonPropertyName("timestamp")]
     public DateTime Timestamp { get; }
@@ -41,7 +41,7 @@ public sealed class OdysseusEventEntry
     public IReadOnlyDictionary<string, object>? Meta { get; }
 
     public OdysseusEventEntry(Guid id, string name, Guid sessionId, int type = 0, short? platform = null, Guid? streamId = null,
-        int position = 0, string? userId = null, DateTime? timestamp = null,
+        int position = 0, string? user = null, DateTime? timestamp = null,
         IReadOnlyDictionary<string, object>? data = null, IReadOnlyDictionary<string, object>? meta = null)
     {
         Id = id;
@@ -51,7 +51,7 @@ public sealed class OdysseusEventEntry
         Platform = platform;
         StreamId = streamId;
         Position = position;
-        UserId = userId;
+        User = user;
         Timestamp = timestamp.HasValue ? timestamp.Value.ToUniversalTime() : DateTime.UtcNow;
         Data = data;
         Meta = meta;

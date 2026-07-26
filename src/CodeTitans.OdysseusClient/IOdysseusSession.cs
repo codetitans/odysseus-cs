@@ -2,7 +2,7 @@ namespace CodeTitans.Odysseus;
 
 public interface IOdysseusSession
 {
-    public string? UserId
+    public string? User
     {
         get;
         set;

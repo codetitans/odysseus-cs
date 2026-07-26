@@ -14,7 +14,7 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
     private readonly OdysseusCollection<OdysseusLogEntry> _logs;
     private readonly OdysseusCollection<OdysseusEventEntry> _events;
 
-    public OdysseusClient(string appId, string appKey, string? userId = null, Guid? sessionId = null,
+    public OdysseusClient(string appId, string appKey, string? user = null, Guid? sessionId = null,
         LogSeverity minSeverity = LogSeverity.Debug, short? platform = null,
         bool stripFileName = true, string? stripFileNamePrefix = null,
         IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null)
@@ -24,7 +24,7 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
         if (string.IsNullOrWhiteSpace(appKey))
             throw new ArgumentNullException(nameof(appKey));
 
-        UserId = userId;
+        User = user;
         SessionId = sessionId ?? Guid.NewGuid();
         MinSeverity = minSeverity;
         Platform = platform;
@@ -45,7 +45,7 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
             internalLog: internalLog);
     }
 
-    public string? UserId
+    public string? User
     {
         get;
         set;
@@ -121,7 +121,7 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
 
         return Add(new OdysseusLogEntry(message, SessionId, severity: severity, tag: tag,
             file: StripFileName(file), methodName: methodName, line: line, thread: thread,
-            platform: Platform, userId: UserId, timestamp: timestamp, context: context));
+            platform: Platform, user: User, timestamp: timestamp, context: context));
     }
 
     /// <summary>
@@ -141,7 +141,7 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
         IReadOnlyDictionary<string, object>? meta = null)
     {
         return Add(new OdysseusEventEntry(id: id ?? Guid.NewGuid(), name, sessionId: SessionId, type: type,
-            platform: Platform, streamId: streamId, position: position, userId: UserId, timestamp: timestamp,
+            platform: Platform, streamId: streamId, position: position, user: User, timestamp: timestamp,
             data: data, meta: meta));
     }
 
