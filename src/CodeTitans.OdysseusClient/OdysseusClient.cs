@@ -112,7 +112,7 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
     /// </summary>
     public OdysseusLogEntry? Log(string message, LogSeverity severity = LogSeverity.Debug, string? tag = null,
         [CallerFilePath] string? file = null, [CallerMemberName] string? methodName = null, [CallerLineNumber] int? line = null,
-        DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
+        int? thread = null, DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
     {
         if (severity < MinSeverity)
         {
@@ -120,7 +120,7 @@ public sealed class OdysseusClient : IOdysseusLog, IOdysseusSession
         }
 
         return Add(new OdysseusLogEntry(message, SessionId, severity: severity, tag: tag,
-            file: StripFileName(file), methodName: methodName, line: line,
+            file: StripFileName(file), methodName: methodName, line: line, thread: thread,
             platform: Platform, userId: UserId, timestamp: timestamp, context: context));
     }
 
