@@ -93,10 +93,11 @@ sealed class OdysseusLogger : IOdysseusLog
     }
 
     public OdysseusLogEntry? Log(string message, LogSeverity severity = LogSeverity.Debug,
-        [CallerFilePath] string? file = null, [CallerMemberName] string? methodName = null, [CallerLineNumber] int? line = null, int? thread = null, DateTime? timestamp = null,
+        [CallerFilePath] string? file = null, [CallerMemberName] string? methodName = null, [CallerLineNumber] int? line = null,
+        int? thread = null, string? threadName = null, DateTime? timestamp = null,
         IReadOnlyDictionary<string, object>? context = null)
     {
-        return client.Log(message, severity, tag, file, methodName, line, thread, timestamp, context);
+        return client.Log(message, severity, tag, file, methodName, line, thread, threadName, timestamp, context);
     }
 
     public OdysseusEventEntry Event(OdysseusEventEntry entry)

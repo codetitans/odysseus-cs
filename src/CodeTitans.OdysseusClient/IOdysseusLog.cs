@@ -31,7 +31,8 @@ public interface IOdysseusLog
     OdysseusLogEntry? Log(OdysseusLogEntry entry);
     OdysseusLogEntry? Log(string message, LogSeverity severity = LogSeverity.Debug,
         [CallerFilePath] string? file = null, [CallerMemberName] string? methodName = null, [CallerLineNumber] int? line = null,
-        int? thread = null, DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null);
+        int? thread = null, string? threadName = null, DateTime? timestamp = null,
+        IReadOnlyDictionary<string, object>? context = null);
 
     OdysseusEventEntry Event(OdysseusEventEntry entry);
     OdysseusEventEntry Event(string name, Guid? id = null, int type = 0, Guid? streamId = null, int position = 0,

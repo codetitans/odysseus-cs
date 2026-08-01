@@ -14,7 +14,7 @@ public interface IOdysseusClient
     /// </summary>
     OdysseusLogEntry? Log(string message, LogSeverity severity = LogSeverity.Debug, string? tag = null,
         [CallerFilePath] string? file = null, [CallerMemberName] string? methodName = null, [CallerLineNumber] int? line = null,
-        int? thread = null, DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null);
+        int? thread = null, string? threadName = null, DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null);
 
     /// <summary>
     /// Adds a new event.

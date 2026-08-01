@@ -35,6 +35,9 @@ public sealed class OdysseusLogEntry
     [JsonPropertyName("thread")]
     public int? Thread { get; }
 
+    [JsonPropertyName("thread_name")]
+    public string? ThreadName { get; }
+
     [JsonPropertyName("user")]
     public string? User { get; }
 
@@ -46,7 +49,7 @@ public sealed class OdysseusLogEntry
 
     public OdysseusLogEntry(string message, Guid sessionId, LogSeverity severity = LogSeverity.Trace, string? tag = null, short? platform = null,
         [CallerFilePath] string? file = null, [CallerMemberName] string? methodName = null, [CallerLineNumber] int? line = null,
-        int? thread = null, string? user = null, DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
+        int? thread = null, string? threadName = null, string? user = null, DateTime? timestamp = null, IReadOnlyDictionary<string, object>? context = null)
     {
         Message = message;
         SessionId = sessionId;
@@ -57,6 +60,7 @@ public sealed class OdysseusLogEntry
         MethodName = methodName;
         Line = line;
         Thread = thread ?? System.Threading.Thread.CurrentThread.ManagedThreadId;
+        ThreadName = !string.IsNullOrWhiteSpace(threadName) ? threadName : System.Threading.Thread.CurrentThread.Name;
         User = user;
         Timestamp = timestamp.HasValue ? timestamp.Value.ToUniversalTime() : DateTime.UtcNow;
         Context = context;
