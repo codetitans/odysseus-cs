@@ -34,7 +34,9 @@ sealed class OdysseusCollection<T>
     private Timer? _timer;
 
     public OdysseusCollection(IHttpClientFactory clientFactory, string? host, string endPoint, string entityName,
-        int delay = 5, string? walFilePath = null, int maxEntries = OdysseusClient.DefaultMaxEntries, Action<string>? internalLog = null)
+        int delay = 5, string? walDirPath = null,
+        int entriesPerFile = OdysseusClient.DefaultEntriesPerFile, int maxFiles = OdysseusClient.DefaultMaxFiles,
+        Action<string>? internalLog = null)
     {
         _clientFactory = clientFactory;
         _baseUri = string.IsNullOrEmpty(host) ? new Uri("https://odysseus.codetitans.dev") : new Uri(host);
@@ -47,7 +49,7 @@ sealed class OdysseusCollection<T>
         _maxDelaySeconds = Math.Max(_delaySeconds, MaxBackoffDelaySeconds);
         _currentDelaySeconds = _delaySeconds;
         _internalLog = internalLog;
-        _store = new OdysseusStore(walFilePath, maxEntries, internalLog);
+        _store = new OdysseusStore(walDirPath, entriesPerFile, maxFiles, internalLog);
 
         // pick up anything the store recovered from a previous session
         if (_store.HasPending)
@@ -98,34 +100,39 @@ sealed class OdysseusCollection<T>
             _timer = null;
         }
 
-        var batch = _store.TakeBatch();
-        if (batch.IsEmpty)
+        // Drain everything pending, oldest chunk first, for as long as uploads keep succeeding -
+        // rather than waiting for a fresh scheduled tick per chunk, so a connection coming back
+        // after a long outage catches up immediately instead of trickling out over many minutes.
+        while (true)
         {
-            return;
-        }
-
-        bool success;
-        try
-        {
-            success = await PerformUploadAsync(batch.Items);
-        }
-        catch (Exception ex)
-        {
-            _internalLog?.Invoke($"Failed to upload {_entityName} to Odysseus: {ex.Message}");
-            success = false;
-        }
-
-        if (success)
-        {
-            // never touched disk on a healthy connection - _store.ConfirmSent() is then a no-op
-            _store.ConfirmSent(batch);
-            lock (_lock)
+            var batch = _store.TakeBatch();
+            if (batch.IsEmpty)
             {
-                _currentDelaySeconds = _delaySeconds;
+                return;
             }
-        }
-        else
-        {
+
+            bool success;
+            try
+            {
+                success = await PerformUploadAsync(batch.Items);
+            }
+            catch (Exception ex)
+            {
+                _internalLog?.Invoke($"Failed to upload {_entityName} to Odysseus: {ex.Message}");
+                success = false;
+            }
+
+            if (success)
+            {
+                // never touched disk on a healthy connection - _store.ConfirmSent() is then a no-op
+                _store.ConfirmSent(batch);
+                lock (_lock)
+                {
+                    _currentDelaySeconds = _delaySeconds;
+                }
+                continue;
+            }
+
             // retried on a later flush - the store persists whatever wasn't already durable
             _store.Requeue(batch);
             int nextDelaySeconds;
@@ -138,6 +145,7 @@ sealed class OdysseusCollection<T>
                 nextDelaySeconds = _currentDelaySeconds;
             }
             _internalLog?.Invoke($"Upload of {_entityName} failed, backing off to {nextDelaySeconds}s before the next attempt");
+            break;
         }
 
         // restart the timer if needed to upload something again

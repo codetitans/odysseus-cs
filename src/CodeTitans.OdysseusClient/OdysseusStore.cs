@@ -3,68 +3,86 @@ using System.Text;
 namespace CodeTitans.Odysseus;
 
 /// <summary>
-/// Owns the in-memory queue of pre-serialized JSON entries waiting to be uploaded, and - when
-/// constructed with a write-ahead file - their durable backing on disk.
+/// Owns the queue of pre-serialized JSON entries waiting to be uploaded, and - when constructed
+/// with a write-ahead directory - their durable backing on disk, split across multiple small chunk
+/// files instead of one ever-growing file.
 ///
-/// Disk is only touched when it's actually needed: <see cref="TakeBatch"/> hands a snapshot straight
-/// out of memory, with no write beforehand. If the upload succeeds, <see cref="ConfirmSent"/> is a
-/// no-op for a batch that never touched disk - on a healthy connection, entries can go from
-/// <see cref="Add"/> to "successfully delivered" without a single disk write. Only
-/// <see cref="Requeue"/> (the upload failed) and <see cref="PersistNow"/> (called explicitly, when
-/// there's no time left for a normal upload cycle) actually write anything, and only what isn't
-/// already durable.
-///
-/// Entries are only removed from the file once their batch has been confirmed uploaded via
-/// <see cref="ConfirmSent"/>. That way, entries survive the process dying (crash, kill, no network)
-/// after being persisted - the next <see cref="OdysseusStore"/> constructed against the same file
-/// (i.e. on the next process launch) picks them back up automatically.
+/// At any time there's at most one "active" chunk, held only in memory, that new entries are
+/// appended to. Once it reaches <c>entriesPerFile</c> entries it's written to disk in one go,
+/// registered as a "closed" chunk (only its file identity is kept in memory from then on - never
+/// its content), and a fresh empty active chunk takes over. This means:
+/// <list type="bullet">
+/// <item>only ever up to <c>entriesPerFile</c> entries sit in memory at once, no matter how big the
+/// backlog on disk gets;</item>
+/// <item>closed chunks are written exactly once and never rewritten - a long outage with entries
+/// still streaming in keeps producing new, small, one-shot writes instead of repeatedly rewriting a
+/// single growing file;</item>
+/// <item><see cref="TakeBatch"/> still hands the active chunk straight out of memory with no write
+/// beforehand (see <see cref="ConfirmSent"/>) - on a healthy connection, nothing needs to touch disk
+/// at all, exactly as before chunking was introduced.</item>
+/// </list>
+/// At most <c>maxFiles</c> closed chunks are ever kept - if closing a new one would exceed that, the
+/// oldest chunk (and its up-to-<c>entriesPerFile</c> entries) is dropped first. Total capacity is
+/// therefore <c>entriesPerFile * maxFiles</c> entries.
 ///
 /// This class only manages storage - it knows nothing about the network. Callers hand a batch off
-/// via <see cref="TakeBatch"/> and report the outcome back via <see cref="ConfirmSent"/> or
-/// <see cref="Requeue"/>.
-///
-/// At most <c>maxEntries</c> entries are ever held (in memory and on disk combined) - if adding more
-/// would exceed that, the oldest entries are dropped to make room, so a very long stretch without a
-/// connection can't grow the pending queue (or the file backing it) without bound.
+/// via <see cref="TakeBatch"/> (always the oldest available data first) and report the outcome back
+/// via <see cref="ConfirmSent"/> or <see cref="Requeue"/>.
 /// </summary>
 sealed class OdysseusStore
 {
-    private readonly object _lock = new();
-    private readonly List<string> _entries = new();
-    private readonly string? _walFilePath;
-    private readonly int _maxEntries;
-    private readonly Action<string>? _internalLog;
-    // entries[0, _persistedCount) are already durably written to _walFilePath; the rest is only in memory.
-    private int _persistedCount;
+    private const string ChunkFileSuffix = ".jsonl";
 
-    public OdysseusStore(string? walFilePath, int maxEntries, Action<string>? internalLog = null)
+    private readonly object _lock = new();
+    private readonly string? _walDir;
+    private readonly int _entriesPerFile;
+    private readonly int _maxFiles;
+    private readonly Action<string>? _internalLog;
+
+    // The active chunk: entirely in memory until it's closed (rotated out because it reached
+    // _entriesPerFile) or an upload attempt needs it durable ahead of that.
+    private readonly List<string> _activeChunk = new();
+    private int _activeChunkPersistedCount;
+    private long _activeChunkSequence;
+
+    // Closed chunks: fully on disk, not kept in memory - only their file identity, oldest first.
+    private readonly LinkedList<long> _closedChunks = new();
+
+    public OdysseusStore(string? walDir, int entriesPerFile, int maxFiles, Action<string>? internalLog = null)
     {
-        _walFilePath = walFilePath;
-        _maxEntries = Math.Max(maxEntries, 1);
+        _walDir = walDir;
+        _entriesPerFile = Math.Max(entriesPerFile, 1);
+        _maxFiles = Math.Max(maxFiles, 1);
         _internalLog = internalLog;
 
-        // Recover anything left over from a previous process (crash, kill, no network, ...) - this
-        // is the only place recovery needs to happen, since from here on the file and the
-        // in-memory queue are always kept in lock-step by TakeBatch()/ConfirmSent()/Requeue()/PersistNow().
-        var recovered = ReadAllLines(walFilePath);
+        // Recover chunk files left over from a previous process (crash, kill, no network, ...).
+        // Every file found is treated as a closed chunk, whether or not it was ever filled to
+        // _entriesPerFile - simpler than trying to resume filling a partial one, and still fully
+        // durable. A fresh, empty active chunk starts right after.
+        var recovered = ListChunkSequences(walDir);
+        long nextSequence = 0;
         if (recovered.Count > 0)
         {
-            _internalLog?.Invoke($"Recovered {recovered.Count} unsent entries from a previous session");
+            _internalLog?.Invoke($"Recovered {recovered.Count} pending chunk file(s) from a previous session");
             lock (_lock)
             {
-                _entries.AddRange(recovered);
-                _persistedCount = recovered.Count; // already on disk - it's where we just read them from
-                EnforceLimit();
+                foreach (var sequence in recovered)
+                {
+                    _closedChunks.AddLast(sequence);
+                }
+                EvictExcessChunks(); // in case maxFiles was lowered since the last run
             }
+            nextSequence = recovered[^1] + 1;
         }
+        _activeChunkSequence = nextSequence;
     }
 
     public void Add(string json)
     {
         lock (_lock)
         {
-            _entries.Add(json);
-            EnforceLimit();
+            _activeChunk.Add(json);
+            RotateIfFull();
         }
     }
 
@@ -77,126 +95,253 @@ sealed class OdysseusStore
         {
             lock (_lock)
             {
-                return _entries.Count > 0;
+                return _activeChunk.Count > 0 || _closedChunks.Count > 0;
             }
         }
     }
 
     /// <summary>
-    /// Snapshots everything currently buffered - without touching disk - and clears the in-memory
-    /// queue, handing ownership of that batch to the caller until it reports back via
-    /// <see cref="ConfirmSent"/> or <see cref="Requeue"/>. Entries added while the batch is still
-    /// outstanding accumulate separately and are unaffected.
+    /// Hands out the oldest available batch - a closed chunk if one exists, otherwise whatever's in
+    /// the active chunk - without touching disk on its own. Ownership passes to the caller until it
+    /// reports back via <see cref="ConfirmSent"/> or <see cref="Requeue"/>. Taking the active chunk
+    /// always starts a fresh one behind it (with a new identity), so entries added afterward never
+    /// get mixed up with this batch.
     /// </summary>
     public TakenBatch TakeBatch()
     {
         lock (_lock)
         {
-            var batch = new List<string>(_entries);
-            var batchPersistedCount = _persistedCount;
-            _entries.Clear();
-            _persistedCount = 0;
-            return new TakenBatch(batch, batchPersistedCount);
+            if (_closedChunks.Count > 0)
+            {
+                var oldestClosed = _closedChunks.First!.Value;
+                return TakenBatch.OfClosedChunk(ReadAllLines(ChunkFile(oldestClosed)), oldestClosed);
+            }
+
+            if (_activeChunk.Count == 0)
+            {
+                return TakenBatch.Empty;
+            }
+
+            var items = new List<string>(_activeChunk);
+            var persisted = _activeChunkPersistedCount;
+            var sequence = _activeChunkSequence;
+
+            _activeChunk.Clear();
+            _activeChunkPersistedCount = 0;
+            _activeChunkSequence = sequence + 1;
+
+            return TakenBatch.OfActiveChunk(items, sequence, persisted);
         }
     }
 
     /// <summary>
     /// Reports that a batch obtained from <see cref="TakeBatch"/> was successfully uploaded. If it
-    /// never touched disk (the common case on a healthy connection), this is a no-op; otherwise it
-    /// drops the now-confirmed prefix from the durable store.
+    /// never touched disk (the common case on a healthy connection), this is a no-op; otherwise its
+    /// file is deleted.
     /// </summary>
     public void ConfirmSent(TakenBatch batch)
     {
-        if (batch.PersistedCount <= 0)
-        {
-            return;
-        }
-
         lock (_lock)
         {
-            RemoveFirstLines(_walFilePath, batch.PersistedCount);
+            if (batch.FromClosedChunk)
+            {
+                _closedChunks.Remove(batch.Sequence);
+                DeleteChunkFile(batch.Sequence);
+            }
+            else if (batch.PersistedCount > 0)
+            {
+                DeleteChunkFile(batch.Sequence);
+            }
         }
     }
 
     /// <summary>
-    /// Reports that a batch obtained from <see cref="TakeBatch"/> failed to upload: persists
-    /// whatever part of it isn't already durable, then puts the whole batch back at the front of
-    /// the queue for a later retry.
+    /// Reports that a batch obtained from <see cref="TakeBatch"/> failed to upload, so it needs a
+    /// later retry. A closed-chunk batch needs no change at all - its file, if still present, is
+    /// already exactly where it needs to be, still the oldest thing pending. An active-chunk batch's
+    /// sequence was already permanently retired when it was taken, so it can't merge back into
+    /// whatever the (now different) active chunk has become in the meantime; instead it's persisted
+    /// (whatever part of it wasn't already durable) and registered as its own closed chunk, at the
+    /// front since it's the oldest data around.
     /// </summary>
     public void Requeue(TakenBatch batch)
     {
         lock (_lock)
         {
-            if (batch.PersistedCount < batch.Items.Count)
+            if (batch.FromClosedChunk)
             {
-                AppendLines(_walFilePath, batch.Items.Skip(batch.PersistedCount));
+                return;
             }
 
-            _entries.InsertRange(0, batch.Items);
-            _persistedCount = batch.Items.Count;
-            EnforceLimit();
+            if (_walDir == null)
+            {
+                // Nothing durable to fall back to - put the actual content straight back into
+                // memory instead of registering a chunk with no file behind it.
+                _activeChunk.InsertRange(0, batch.Items);
+                RotateIfFull();
+                return;
+            }
+
+            if (batch.PersistedCount < batch.Items.Count)
+            {
+                AppendLines(ChunkFile(batch.Sequence), batch.Items.Skip(batch.PersistedCount));
+            }
+
+            _closedChunks.AddFirst(batch.Sequence);
+            EvictExcessChunks();
         }
-    }
-
-    // must be called while already holding `_lock`
-    private void EnforceLimit()
-    {
-        var overflow = _entries.Count - _maxEntries;
-        if (overflow <= 0)
-        {
-            return;
-        }
-
-        // Drop the oldest `overflow` entries to make room. If any of them were already durably
-        // persisted, trim the same count from the front of the file too, so it stays in lock-step
-        // with memory instead of accumulating entries we've decided to discard.
-        var droppedPersisted = Math.Min(overflow, _persistedCount);
-        if (droppedPersisted > 0)
-        {
-            RemoveFirstLines(_walFilePath, droppedPersisted);
-        }
-
-        _entries.RemoveRange(0, overflow);
-        _persistedCount = Math.Max(0, _persistedCount - overflow);
-
-        _internalLog?.Invoke($"Pending queue exceeded {_maxEntries} entries - dropped the oldest {overflow}");
     }
 
     /// <summary>
-    /// Forces everything currently buffered to disk right now, regardless of upload state. Meant to
-    /// be called explicitly, when there's no time left to wait for a normal upload cycle.
+    /// Forces the active chunk to disk right now, regardless of upload state - without rotating it
+    /// out. Meant to be called explicitly, when there's no time left to wait for a normal upload
+    /// cycle.
     /// </summary>
     public void PersistNow()
     {
         lock (_lock)
         {
-            if (_persistedCount < _entries.Count)
+            PersistActiveChunkLocked();
+        }
+    }
+
+    // must be called while already holding `_lock`
+    private void RotateIfFull()
+    {
+        if (_walDir == null)
+        {
+            // No disk to hold "closed" chunks on - just cap the total in-memory size directly,
+            // dropping the oldest as needed, the same way a single-buffer store would.
+            var overflow = _activeChunk.Count - _entriesPerFile * _maxFiles;
+            if (overflow > 0)
             {
-                AppendLines(_walFilePath, _entries.Skip(_persistedCount));
-                _persistedCount = _entries.Count;
+                _activeChunk.RemoveRange(0, overflow);
             }
+            return;
+        }
+
+        if (_activeChunk.Count >= _entriesPerFile)
+        {
+            CloseActiveChunk();
+        }
+    }
+
+    // must be called while already holding `_lock`
+    private void CloseActiveChunk()
+    {
+        PersistActiveChunkLocked();
+        _closedChunks.AddLast(_activeChunkSequence);
+        _activeChunk.Clear();
+        _activeChunkPersistedCount = 0;
+        _activeChunkSequence++;
+        EvictExcessChunks();
+    }
+
+    // must be called while already holding `_lock`
+    private void PersistActiveChunkLocked()
+    {
+        if (_activeChunkPersistedCount >= _activeChunk.Count)
+        {
+            return;
+        }
+        AppendLines(ChunkFile(_activeChunkSequence), _activeChunk.Skip(_activeChunkPersistedCount));
+        _activeChunkPersistedCount = _activeChunk.Count;
+    }
+
+    // must be called while already holding `_lock`
+    private void EvictExcessChunks()
+    {
+        while (_closedChunks.Count > _maxFiles)
+        {
+            var oldest = _closedChunks.First!.Value;
+            _closedChunks.RemoveFirst();
+            DeleteChunkFile(oldest);
+            _internalLog?.Invoke($"Pending chunk limit ({_maxFiles} files) exceeded - dropped oldest chunk {oldest} (up to {_entriesPerFile} entries)");
         }
     }
 
     /// <summary>
-    /// A batch of entries taken via <see cref="TakeBatch"/>, along with how many of its leading
-    /// entries were already durable on disk at the time it was taken.
+    /// A batch of entries taken via <see cref="TakeBatch"/>: either a full closed chunk read from
+    /// disk, or a snapshot of what the active chunk held (with how much of it, if any, was already
+    /// durable at take time).
     /// </summary>
     public sealed class TakenBatch
     {
         public IReadOnlyList<string> Items { get; }
+        public long Sequence { get; }
+        public bool FromClosedChunk { get; }
         public int PersistedCount { get; }
 
-        public TakenBatch(IReadOnlyList<string> items, int persistedCount)
+        private TakenBatch(IReadOnlyList<string> items, long sequence, bool fromClosedChunk, int persistedCount)
         {
             Items = items;
+            Sequence = sequence;
+            FromClosedChunk = fromClosedChunk;
             PersistedCount = persistedCount;
         }
+
+        public static TakenBatch Empty { get; } = new(Array.Empty<string>(), -1, false, 0);
+
+        public static TakenBatch OfClosedChunk(IReadOnlyList<string> items, long sequence) => new(items, sequence, true, items.Count);
+
+        public static TakenBatch OfActiveChunk(IReadOnlyList<string> items, long sequence, int persistedCount) => new(items, sequence, false, persistedCount);
 
         public bool IsEmpty => Items.Count == 0;
     }
 
-    // --- Write-ahead file persistence, so unsent entries survive the process dying -----------
+    // --- Chunk file naming/discovery -----------------------------------------------------------
+
+    private string? ChunkFile(long sequence)
+    {
+        return _walDir == null ? null : Path.Combine(_walDir, $"{sequence:D6}{ChunkFileSuffix}");
+    }
+
+    private void DeleteChunkFile(long sequence)
+    {
+        var file = ChunkFile(sequence);
+        if (file == null || !File.Exists(file))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(file);
+        }
+        catch (Exception ex)
+        {
+            _internalLog?.Invoke($"Unable to delete {file}: {ex.Message}");
+        }
+    }
+
+    private static List<long> ListChunkSequences(string? dir)
+    {
+        var sequences = new List<long>();
+        if (dir == null || !Directory.Exists(dir))
+        {
+            return sequences;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(dir))
+        {
+            var name = Path.GetFileName(file);
+            if (!name.EndsWith(ChunkFileSuffix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var stem = name.Substring(0, name.Length - ChunkFileSuffix.Length);
+            if (long.TryParse(stem, out var sequence))
+            {
+                sequences.Add(sequence);
+            }
+        }
+
+        sequences.Sort();
+        return sequences;
+    }
+
+    // --- Plain single-file I/O helpers ---------------------------------------------------------
 
     private void AppendLines(string? path, IEnumerable<string> lines)
     {
@@ -223,30 +368,6 @@ sealed class OdysseusStore
         catch (Exception ex)
         {
             _internalLog?.Invoke($"Failed to persist pending entries: {ex.Message}");
-        }
-    }
-
-    private void RemoveFirstLines(string? path, int count)
-    {
-        if (path == null || count <= 0 || !File.Exists(path))
-        {
-            return;
-        }
-
-        try
-        {
-            var remaining = File.ReadAllLines(path, Encoding.UTF8).Skip(count).ToArray();
-            if (remaining.Length == 0)
-            {
-                File.Delete(path);
-                return;
-            }
-
-            File.WriteAllLines(path, remaining, Encoding.UTF8);
-        }
-        catch (Exception ex)
-        {
-            _internalLog?.Invoke($"Failed to trim pending store: {ex.Message}");
         }
     }
 

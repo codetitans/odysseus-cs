@@ -9,14 +9,21 @@ namespace CodeTitans.Odysseus;
 public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
 {
     /// <summary>
-    /// Default cap on how many not-yet-uploaded log entries/events (each counted separately) are
-    /// ever held in memory/on disk at once, unless overridden via the <c>maxEntries</c> constructor
-    /// parameter.
+    /// Default number of entries held per persisted chunk file, unless overridden via the
+    /// <c>entriesPerFile</c> constructor parameter.
     /// </summary>
-    public const int DefaultMaxEntries = 2_000;
+    public const int DefaultEntriesPerFile = 200;
 
-    private const string PendingLogsFileName = "logs.jsonl";
-    private const string PendingEventsFileName = "events.jsonl";
+    /// <summary>
+    /// Default cap on how many chunk files (each up to <see cref="DefaultEntriesPerFile"/> entries)
+    /// are ever kept, per log entries/events (counted separately), unless overridden via the
+    /// <c>maxFiles</c> constructor parameter. Total default capacity is therefore
+    /// <see cref="DefaultEntriesPerFile"/> * <see cref="DefaultMaxFiles"/> entries.
+    /// </summary>
+    public const int DefaultMaxFiles = 100;
+
+    private const string LogsSubdirectoryName = "logs";
+    private const string EventsSubdirectoryName = "events";
 
     private readonly bool _stripFileName;
     private readonly string? _stripFileNamePrefix;
@@ -29,22 +36,31 @@ public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
     /// <param name="appKey">Application key issued by the Odysseus Platform.</param>
     /// <param name="storageDirectory">
     /// When set, not-yet-uploaded log entries and events are additionally persisted to disk under
-    /// this directory (as they fail to upload) and are automatically picked back up and retried the
-    /// next time a client is constructed against the same directory - including across process
-    /// restarts after a crash or a lost network connection. Left <see langword="null"/> (the
-    /// default), unsubmitted entries only live in memory: if the process dies before they are
-    /// uploaded, they are lost.
+    /// this directory (split into small chunk files - see <paramref name="entriesPerFile"/>) and are
+    /// automatically picked back up and retried the next time a client is constructed against the
+    /// same directory - including across process restarts after a crash or a lost network
+    /// connection. Left <see langword="null"/> (the default), unsubmitted entries only live in
+    /// memory: if the process dies before they are uploaded, they are lost.
     /// </param>
-    /// <param name="maxEntries">
-    /// Caps how many not-yet-uploaded log entries and events (each counted separately) are ever held
-    /// in memory/on disk at once - a very long stretch without a connection drops the oldest ones to
-    /// make room for new ones, rather than growing without bound.
+    /// <param name="entriesPerFile">
+    /// How many entries each persisted chunk file holds. Only the newest, still-filling chunk is
+    /// ever held in memory (per log entries/events, counted separately); everything older lives
+    /// purely on disk until it's uploaded, and closed chunks are written to disk exactly once, never
+    /// rewritten - so a long stretch without a connection produces a steady trickle of small, one-shot
+    /// writes instead of repeatedly rewriting one ever-growing file.
+    /// </param>
+    /// <param name="maxFiles">
+    /// Caps how many chunk files (each up to <paramref name="entriesPerFile"/> entries) are ever kept
+    /// per log entries/events (counted separately) - a very long stretch without a connection drops
+    /// the oldest chunk file (and its up-to-<paramref name="entriesPerFile"/> entries) to make room
+    /// for new ones, rather than growing without bound. Total capacity is therefore
+    /// <paramref name="entriesPerFile"/> * <paramref name="maxFiles"/> entries.
     /// </param>
     public OdysseusClient(string appId, string appKey, string? user = null, Guid? sessionId = null,
         LogSeverity minSeverity = LogSeverity.Debug, short? platform = null,
         bool stripFileName = true, string? stripFileNamePrefix = null,
         IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null, string? targetHost = null,
-        int maxEntries = DefaultMaxEntries, string? storageDirectory = null)
+        int entriesPerFile = DefaultEntriesPerFile, int maxFiles = DefaultMaxFiles, string? storageDirectory = null)
     {
         if (string.IsNullOrWhiteSpace(appId))
             throw new ArgumentNullException(nameof(appId));
@@ -64,15 +80,17 @@ public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
         _logs = new OdysseusCollection<OdysseusLogEntry>(host: targetHost, endPoint: string.Concat("/api/logs/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
             clientFactory: cf,
             delay: delay,
-            walFilePath: storageDirectory != null ? Path.Combine(storageDirectory, PendingLogsFileName) : null,
-            maxEntries: maxEntries,
+            walDirPath: storageDirectory != null ? Path.Combine(storageDirectory, LogsSubdirectoryName) : null,
+            entriesPerFile: entriesPerFile,
+            maxFiles: maxFiles,
             entityName: "logs",
             internalLog: internalLog);
         _events = new OdysseusCollection<OdysseusEventEntry>(host: targetHost, endPoint: string.Concat("/api/events/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
             clientFactory: cf,
             delay: delay,
-            walFilePath: storageDirectory != null ? Path.Combine(storageDirectory, PendingEventsFileName) : null,
-            maxEntries: maxEntries,
+            walDirPath: storageDirectory != null ? Path.Combine(storageDirectory, EventsSubdirectoryName) : null,
+            entriesPerFile: entriesPerFile,
+            maxFiles: maxFiles,
             entityName: "events",
             internalLog: internalLog);
     }
