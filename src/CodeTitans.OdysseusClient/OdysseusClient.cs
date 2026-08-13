@@ -8,16 +8,43 @@ namespace CodeTitans.Odysseus;
 /// </summary>
 public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
 {
+    /// <summary>
+    /// Default cap on how many not-yet-uploaded log entries/events (each counted separately) are
+    /// ever held in memory/on disk at once, unless overridden via the <c>maxEntries</c> constructor
+    /// parameter.
+    /// </summary>
+    public const int DefaultMaxEntries = 2_000;
+
+    private const string PendingLogsFileName = "logs.jsonl";
+    private const string PendingEventsFileName = "events.jsonl";
+
     private readonly bool _stripFileName;
     private readonly string? _stripFileNamePrefix;
+    private readonly Action<string>? _internalLog;
 
     private readonly OdysseusCollection<OdysseusLogEntry> _logs;
     private readonly OdysseusCollection<OdysseusEventEntry> _events;
 
+    /// <param name="appId">Application identifier issued by the Odysseus Platform.</param>
+    /// <param name="appKey">Application key issued by the Odysseus Platform.</param>
+    /// <param name="storageDirectory">
+    /// When set, not-yet-uploaded log entries and events are additionally persisted to disk under
+    /// this directory (as they fail to upload) and are automatically picked back up and retried the
+    /// next time a client is constructed against the same directory - including across process
+    /// restarts after a crash or a lost network connection. Left <see langword="null"/> (the
+    /// default), unsubmitted entries only live in memory: if the process dies before they are
+    /// uploaded, they are lost.
+    /// </param>
+    /// <param name="maxEntries">
+    /// Caps how many not-yet-uploaded log entries and events (each counted separately) are ever held
+    /// in memory/on disk at once - a very long stretch without a connection drops the oldest ones to
+    /// make room for new ones, rather than growing without bound.
+    /// </param>
     public OdysseusClient(string appId, string appKey, string? user = null, Guid? sessionId = null,
         LogSeverity minSeverity = LogSeverity.Debug, short? platform = null,
         bool stripFileName = true, string? stripFileNamePrefix = null,
-        IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null, string? targetHost = null)
+        IHttpClientFactory? clientFactory = null, int delay = 5, Action<string>? internalLog = null, string? targetHost = null,
+        int maxEntries = DefaultMaxEntries, string? storageDirectory = null)
     {
         if (string.IsNullOrWhiteSpace(appId))
             throw new ArgumentNullException(nameof(appId));
@@ -31,16 +58,21 @@ public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
 
         _stripFileName = stripFileName;
         _stripFileNamePrefix = stripFileNamePrefix;
+        _internalLog = internalLog;
         var cf = clientFactory ?? new InternalClientFactory();
 
         _logs = new OdysseusCollection<OdysseusLogEntry>(host: targetHost, endPoint: string.Concat("/api/logs/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
             clientFactory: cf,
             delay: delay,
+            walFilePath: storageDirectory != null ? Path.Combine(storageDirectory, PendingLogsFileName) : null,
+            maxEntries: maxEntries,
             entityName: "logs",
             internalLog: internalLog);
         _events = new OdysseusCollection<OdysseusEventEntry>(host: targetHost, endPoint: string.Concat("/api/events/", HttpUtility.UrlEncode(appId), "/", HttpUtility.UrlEncode(appKey)),
             clientFactory: cf,
             delay: delay,
+            walFilePath: storageDirectory != null ? Path.Combine(storageDirectory, PendingEventsFileName) : null,
+            maxEntries: maxEntries,
             entityName: "events",
             internalLog: internalLog);
     }
@@ -143,6 +175,54 @@ public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
         return Add(new OdysseusEventEntry(id: id ?? Guid.NewGuid(), name, sessionId: SessionId, type: type,
             platform: Platform, streamId: streamId, position: position, user: User, timestamp: timestamp,
             data: data, meta: meta));
+    }
+
+    /// <summary>
+    /// Captures details about the currently running app (version, debug/release build, ...) - see
+    /// <see cref="OdysseusDeviceInfo.CaptureAppInfo"/>. Any entries also present in <paramref name="extra"/>
+    /// are overridden by it.
+    /// </summary>
+    public Dictionary<string, object> CaptureAppInfo(IReadOnlyDictionary<string, object>? extra = null)
+    {
+        var info = OdysseusDeviceInfo.CaptureAppInfo(_internalLog);
+        return MergeExtra(info, extra);
+    }
+
+    /// <summary>
+    /// Captures details about the current device/host (OS, runtime, memory, locale, ...) - see
+    /// <see cref="OdysseusDeviceInfo.CaptureDeviceInfo"/>. Any entries also present in <paramref name="extra"/>
+    /// are overridden by it.
+    /// </summary>
+    public Dictionary<string, object> CaptureDeviceInfo(IReadOnlyDictionary<string, object>? extra = null)
+    {
+        var info = OdysseusDeviceInfo.CaptureDeviceInfo(_internalLog);
+        return MergeExtra(info, extra);
+    }
+
+    private static Dictionary<string, object> MergeExtra(Dictionary<string, object> info, IReadOnlyDictionary<string, object>? extra)
+    {
+        if (extra != null)
+        {
+            foreach (var pair in extra)
+            {
+                info[pair.Key] = pair.Value;
+            }
+        }
+
+        return info;
+    }
+
+    /// <summary>
+    /// Forces every not-yet-uploaded log entry and event currently held only in memory to durable
+    /// storage right now (a local disk write - no network involved). A no-op if this client was
+    /// constructed without a <c>storageDirectory</c> (nothing durable to write to). Call this for
+    /// extra safety at any point you consider risky, e.g. right before intentionally shutting the
+    /// process down.
+    /// </summary>
+    public void PersistPending()
+    {
+        _logs.PersistPendingNow();
+        _events.PersistPendingNow();
     }
 
     /// <summary>
