@@ -15,6 +15,11 @@ public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
     public const int DefaultEntriesPerFile = 200;
 
     /// <summary>
+    /// Default key name, where the exception is expected.
+    /// </summary>
+    public const string KeyException = "exception";
+
+    /// <summary>
     /// Default cap on how many chunk files (each up to <see cref="DefaultEntriesPerFile"/> entries)
     /// are ever kept, per log entries/events (counted separately), unless overridden via the
     /// <c>maxFiles</c> constructor parameter. Total default capacity is therefore

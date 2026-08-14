@@ -52,7 +52,7 @@ sealed class OdysseusLogger : IOdysseusLog
 
     public OdysseusLogEntry? Warn(Exception ex, string message)
     {
-        return client.Log(message, severity: LogSeverity.Warn, context: CreateContectFor(ex));
+        return client.Log(message, severity: LogSeverity.Warn, context: CreateContextFor(ex));
     }
 
     public OdysseusLogEntry? Error(string message)
@@ -62,7 +62,7 @@ sealed class OdysseusLogger : IOdysseusLog
 
     public OdysseusLogEntry? Error(Exception ex, string message)
     {
-        return client.Log(message, severity: LogSeverity.Error, context: CreateContectFor(ex));
+        return client.Log(message, severity: LogSeverity.Error, context: CreateContextFor(ex));
     }
 
     public OdysseusLogEntry? Critical(string message)
@@ -72,7 +72,7 @@ sealed class OdysseusLogger : IOdysseusLog
 
     public OdysseusLogEntry? Critical(Exception ex, string message)
     {
-        return client.Log(message, severity: LogSeverity.Critical, context: CreateContectFor(ex));
+        return client.Log(message, severity: LogSeverity.Critical, context: CreateContextFor(ex));
     }
 
     public OdysseusLogEntry? Log(OdysseusLogEntry entry)
@@ -80,7 +80,7 @@ sealed class OdysseusLogger : IOdysseusLog
         return client.Add(entry);
     }
 
-    private Dictionary<string, object>? CreateContectFor(Exception? ex)
+    private Dictionary<string, object>? CreateContextFor(Exception? ex)
     {
         if (ex == null)
         {
@@ -88,7 +88,7 @@ sealed class OdysseusLogger : IOdysseusLog
         }
 
         var context = new Dictionary<string, object>();
-        context.Add("exception", client.Wrap(ex));
+        context.Add(OdysseusClient.KeyException, client.Wrap(ex));
         return context;
     }
 
