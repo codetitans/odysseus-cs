@@ -3,7 +3,7 @@ namespace CodeTitans.Odysseus;
 /// <summary>
 /// Version of the Odysseus logger, which ignores all messages to minimize the traffic to external services.
 /// </summary>
-public sealed class OdysseusIgnore : IOdysseusLog, IOdysseusClient, IOdysseusSession
+public sealed class OdysseusIgnore : IOdysseusLog, IOdysseusClient, IOdysseusSession, IOdysseusLogProvider
 {
     public string? User { get; set; }
     public Guid SessionId { get; set; }
@@ -125,5 +125,10 @@ public sealed class OdysseusIgnore : IOdysseusLog, IOdysseusClient, IOdysseusSes
     {
         return new OdysseusEventEntry(id ?? Guid.NewGuid(), name, SessionId, type, Platform,
             streamId, position, User, timestamp, data, meta);
+    }
+
+    public IOdysseusLog Create(string? tag = null)
+    {
+        return this;
     }
 }
