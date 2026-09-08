@@ -4,9 +4,9 @@ using System.Web;
 namespace CodeTitans.Odysseus;
 
 /// <summary>
-/// Odysseus Platform client capable of delivering logs and events on a timely based manner to optimize the network traffic.
+/// Odysseus Platform client capable of delivering logs and events in a timely-based manner to optimize the network traffic.
 /// </summary>
-public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
+public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession, IOdysseusLogProvider
 {
     /// <summary>
     /// Default number of entries held per persisted chunk file, unless overridden via the
@@ -249,7 +249,7 @@ public sealed class OdysseusClient : IOdysseusClient, IOdysseusSession
     }
 
     /// <summary>
-    /// Creates new associated and simplified logger for a given tag.
+    /// Creates a new associated and simplified logger for a given tag.
     /// </summary>
     public IOdysseusLog Create(string? tag = null)
     {
