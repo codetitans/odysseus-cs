@@ -38,4 +38,6 @@ public interface IOdysseusLog
     OdysseusEventEntry Event(string name, Guid? id = null, int type = 0, Guid? streamId = null, int position = 0,
         DateTime? timestamp = null, IReadOnlyDictionary<string, object>? data = null,
         IReadOnlyDictionary<string, object>? meta = null);
+
+    Dictionary<string, object>? CreateContextFor(Exception? ex);
 }

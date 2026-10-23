@@ -101,6 +101,11 @@ public sealed class OdysseusIgnore : IOdysseusLog, IOdysseusClient, IOdysseusSes
             streamId, position, User, timestamp, data, meta);
     }
 
+    public Dictionary<string, object>? CreateContextFor(Exception? ex)
+    {
+        return null;
+    }
+
     public Dictionary<string, object> Wrap(Exception e)
     {
         return new Dictionary<string, object>();

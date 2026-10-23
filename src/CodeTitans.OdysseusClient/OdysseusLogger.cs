@@ -80,7 +80,7 @@ sealed class OdysseusLogger : IOdysseusLog
         return client.Add(entry);
     }
 
-    private Dictionary<string, object>? CreateContextFor(Exception? ex)
+    public Dictionary<string, object>? CreateContextFor(Exception? ex)
     {
         if (ex == null)
         {
